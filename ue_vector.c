@@ -91,3 +91,47 @@ void ue_vector_add_in(ue_vector* vect, const void* const to_be_added, size_t pos
     ++(vect->length);
 }
 
+void* ue_vector_get_back(const ue_vector* const vect) {
+    assert(vect != NULL);
+    assert(ue_vector_length(vect) != 0);
+    return ue_vector_get_in(vect, ue_vector_length(vect) - 1);
+}
+
+void* ue_vector_get_front(const ue_vector* const vect) {
+    assert(vect != NULL);
+    assert(ue_vector_length(vect) != 0);
+    return ue_vector_get_in(vect, 0);
+}
+
+void* ue_vector_get_in(const ue_vector* const vect, size_t pos) {
+    assert(vect != NULL);
+    assert(ue_vector_length(vect) != 0);
+    assert(pos < ue_vector_length(vect));
+    return vect->data[pos];
+}
+
+void ue_vector_delete_back(ue_vector* vect) {
+    assert(vect != NULL);
+    assert(!ue_vector_is_empty(vect));
+    ue_vector_delete_in(vect, ue_vector_length(vect) - 1);
+}
+
+void ue_vector_delete_front(ue_vector* vect) {
+    assert(vect != NULL);
+    assert(!ue_vector_is_empty(vect));
+    ue_vector_delete_in(vect, 0);
+}
+
+void ue_vector_delete_in(ue_vector* vect, size_t pos) {
+    assert(vect != NULL);
+    assert(!ue_vector_is_empty(vect));
+    assert(pos < ue_vector_length(vect));
+    
+    // moving elements
+    for (size_t i = pos; i < ue_vector_length(vect) - 1; ++i) {
+        memcpy(vect->data[i], vect->data[i + 1], ue_vector_data_size(vect));
+    }
+
+    free(vect->data[ue_vector_length(vect) - 1]);
+    --(vect->length);
+}

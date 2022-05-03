@@ -10,23 +10,28 @@ CFLAGS=-c -Wall
 CC=gcc
 
 # Automatic generation of some important lists
-OBJECTS=$(SOURCES2:.c=.o)
+OBJECTS=$(SOURCES:.c=.o)
+OBJECTS2=$(SOURCES2:.c=.o)
 INCFLAGS=$(foreach TMP,$(INCPATHS),-I$(TMP))
 LIBFLAGS=$(foreach TMP,$(LIBPATHS),-L$(TMP))
 
 # Set up the output file names for the different output types
-BINARY=$(PROJECT2)
+BINARY=$(PROJECT)
+BINARY2=$(PROJECT2)
 
-all: $(SOURCES2) $(BINARY)
+all: $(SOURCES) $(BINARY) $(SOURCES2) $(BINARY2)
 
 $(BINARY): $(OBJECTS)
 	$(CC) $(LIBFLAGS) $(OBJECTS) $(LDFLAGS) -o $@
+
+$(BINARY2): $(OBJECTS2)
+	$(CC) $(LIBFLAGS) $(OBJECTS2) $(LDFLAGS) -o $@
 
 .c.o:
 	$(CC) $(INCFLAGS) $(CFLAGS) -fPIC $< -o $@
 
 distclean: clean
-	rm -f $(BINARY)
+	rm -f $(BINARY) $(BINARY2)
 
 clean:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(OBJECTS2)

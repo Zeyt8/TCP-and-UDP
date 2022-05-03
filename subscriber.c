@@ -19,6 +19,7 @@ int sockfd;
 struct sockaddr_in serv_addr;
 char buffer[BUFFER_LEN];
 fd_set read_fds, tmp_fds;
+int ret;
 
 int main(int argc, char *argv[])
 {
@@ -32,15 +33,25 @@ int main(int argc, char *argv[])
     strcpy(idClient, argv[1]);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sockfd < 0){
+        fprintf(stderr, "No socket available.\n");
+    }
+
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(atoi(argv[3]));
     inet_aton(argv[2], &serv_addr.sin_addr);
 
-    connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    ret = connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    if(ret < 0){
+        fprintf(stderr, "Cannot connect to server.\n");
+    }
     memset(buffer, 0, sizeof(BUFFER_LEN));
     memcpy(buffer, idClient, sizeof(idClient));
     buffer[ID_LEN] = '\0';
-    send(sockfd, buffer, ID_LEN + 1, 0);
+    ret = send(sockfd, buffer, ID_LEN + 1, 0);
+    if(ret < 0){
+        fprintf(stderr, "Cannot send message to server.\n");
+    }
 
     FD_SET(STDIN_FILENO, &read_fds);
     FD_SET(sockfd, &read_fds);
@@ -51,13 +62,15 @@ int main(int argc, char *argv[])
     {
         tmp_fds = read_fds;
 
-        select(sockfd + 1, &tmp_fds, NULL, NULL, NULL);
+        ret = select(sockfd + 1, &tmp_fds, NULL, NULL, NULL);
+        if(ret < 0){
+            fprintf(stderr, "Cannot select fd.\n");
+        }
 
         if(FD_ISSET(STDIN_FILENO, &tmp_fds)){
             fgets(command, 100, stdin);
             tok = strtok(command, " ");
             if(strcmp(tok, "subscribe") == 0){
-                tok = strtok(NULL, " ");
                 char* topic = strtok(NULL, " ");
                 tok = strtok(NULL, " ");
                 subscribe(topic, atoi(tok), strlen(topic));
@@ -70,10 +83,17 @@ int main(int argc, char *argv[])
                 close(sockfd);
                 return 0;
             }
+            else{
+                fprintf(stderr, "Invalid command.\n");
+            }
         }
         if(FD_ISSET(sockfd, &tmp_fds)){
             memset(buffer, 0, BUFFER_LEN);
             n = recv(sockfd, buffer, BUFFER_LEN, 0);
+            if(n < 0)
+            {
+                fprintf(stderr, "Cannot receive message.\n");
+            }
 
             unsigned int type;
             memcpy(&type, buffer, 1);
@@ -119,6 +139,10 @@ int main(int argc, char *argv[])
                 memcpy(string, buffer + 1, sizeof(string));
                 puts(string);
             }
+            else
+            {
+                fprintf(stderr, "Invalid message.\n");
+            }
         }
     }
 }
@@ -128,14 +152,24 @@ void subscribe(char topic[], int sf, int len){
     memcpy(buffer, topic, len);
     memcpy(buffer + 50, &sf, sizeof(sf));
     memcpy(buffer + 50 + sizeof(sf), "\0", 1);
-    send(sockfd, buffer, 55, 0);
-    printf("Subscribed to topic.\n");
+    ret = send(sockfd, buffer, 55, 0);
+    if(ret < 0){
+        fprintf(stderr, "Cannot send message to server.\n");
+    }
+    else{
+        printf("Subscribed to topic.\n");
+    }
 }
 
 void unsubscribe(char topic[], int len){
     memset(buffer, 0, BUFFER_LEN);
     memcpy(buffer, topic, len);
     memcpy(buffer + 50, "\0", 1);
-    send(sockfd, buffer, 51, 0);
-    printf("Unsubscribed from topic.\n");
+    ret = send(sockfd, buffer, 51, 0);
+    if(ret < 0){
+        fprintf(stderr, "Cannot send message to server.\n");
+    }
+    else{
+        printf("Unsubscribed to topic.\n");
+    }
 }

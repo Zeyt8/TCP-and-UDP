@@ -11,7 +11,7 @@
 #include "ue_vector.h"
 
 #define BUFFER_LEN 1551
-#define MAX_CLIENTS 100
+#define MAX_CLIENTS 10000
 #define FD_START 4
 
 typedef struct client{
@@ -21,7 +21,7 @@ typedef struct client{
     queue messagesToReceive;
 } client;
 
-int sockfd, newsockfd, portno, dest;
+int sockfd, newsockfd, portno, dest, udpfd;
 char buffer[BUFFER_LEN];
 struct sockaddr_in serv_addr, cli_addr;
 socklen_t clilen;
@@ -31,6 +31,8 @@ fd_set tmp_fds;
 int fdmax;
 
 ue_vector* clients;
+
+int ret;
 
 int main(int argc, char *argv[])
 {
@@ -43,6 +45,9 @@ int main(int argc, char *argv[])
     FD_ZERO(&tmp_fds);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sockfd < 0){
+        fprintf(stderr, "No socket available.\n");
+    }
 
     portno = atoi(argv[1]);
 
@@ -51,44 +56,89 @@ int main(int argc, char *argv[])
     serv_addr.sin_port = htons(portno);
     serv_addr.sin_addr.s_addr = INADDR_ANY;
 
-    bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    ret = bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    if(ret < 0){
+        fprintf(stderr, "Cannot bind socket.\n");
+    }
 
-    listen(sockfd, MAX_CLIENTS);
+    ret = listen(sockfd, MAX_CLIENTS);
+    if(ret < 0){
+        fprintf(stderr, "Cannot listen to socket.\n");
+    }
+
+    udpfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(udpfd < 0){
+        fprintf(stderr, "No scoket available.\n");
+    }
+    ret = bind(udpfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    if(ret < 0){
+        fprintf(stderr, "Cannot bind socket.\n");
+    }
 
     FD_SET(STDIN_FILENO, &read_fds);
+    FD_SET(udpfd, &read_fds);
     FD_SET(sockfd, &read_fds);
     fdmax = sockfd;
+    if(udpfd > fdmax){
+        fdmax = udpfd;
+    }
+
+    int incomingId = 0;
 
     while(1){
         tmp_fds = read_fds;
 
-        select(fdmax + 1, &tmp_fds, NULL, NULL, NULL);
+        ret = select(fdmax + 1, &tmp_fds, NULL, NULL, NULL);
+        if(ret < 0){
+            fprintf(stderr, "Cannot listen to socket.\n");
+        }
 
-        for (int i = 0; i < fdmax;i++){
+        for (int i = 0; i <= fdmax; i++){
             if(FD_ISSET(i, &tmp_fds)){
                 if(i==sockfd){
                     clilen = sizeof(cli_addr);
                     newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
+                    if(newsockfd < 0){
+                        fprintf(stderr, "Cannot accept connection.\n");
+                    }
                     FD_SET(newsockfd, &read_fds);
-                    n = recv(sockfd, buffer, BUFFER_LEN, 0);
                     if (newsockfd > fdmax)
                     {
                         fdmax = newsockfd;
                     }
-                    client c;
-                    c.sock = newsockfd;
-                    c.topics = ue_vector_start(51, 51);
-                    c.messagesToReceive = queue_create();
-                    memcpy(c.ID, buffer, 10);
-                    ue_vector_add_back(clients, &c);
-                    printf("New client %s connected from %s:%d", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
+                    incomingId = 1;
+                }
+                else if(i == udpfd){
+                    memset(buffer, 0, BUFFER_LEN);
+                    struct sockaddr addr;
+                    socklen_t addrLen;
+                    n = recvfrom(i, buffer, BUFFER_LEN, 0, &addr, &addrLen);
+                    if(n < 0){
+                        fprintf(stderr, "Cannot receive from socket.\n");
+                    }
+                    char topic[51];
+                    memcpy(topic, buffer, 50);
+                    topic[50] = '\0';
+                    for (int k = 0; k < clients->length; k++)
+                    {
+                        for (int j = 0; j < ((client *)ue_vector_get_in(clients, k))->topics->length; j++)
+                        {
+                            if (strcmp(ue_vector_get_in(((client *)ue_vector_get_in(clients, k))->topics, j), topic) == 0)
+                            {
+                                send(((client *)ue_vector_get_in(clients, k))->sock, buffer + 50, sizeof(1501), 0);
+                            }
+                        }
+                    }
                 }
                 else{
                     memset(buffer, 0, BUFFER_LEN);
                     struct sockaddr addr;
                     socklen_t addrLen;
-                    n = recvfrom(sockfd, buffer, BUFFER_LEN, 0, &addr, &addrLen);
-                    if(n==0){
+                    n = recvfrom(i, buffer, BUFFER_LEN, 0, &addr, &addrLen);
+                    if(n < 0){
+                        fprintf(stderr, "Cannot receive from socket.\n");
+                    }
+                    else if(n==0){
                         for (int j = 0; j < clients->length; j++)
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
@@ -97,18 +147,26 @@ int main(int argc, char *argv[])
                         }
                     }
                     else{
-                        char topic[51];
-                        memcpy(topic, buffer, 50);
-                        topic[50] = '\0';
-                        for (int k = 0; k < clients->length; k++)
-                        {
-                            for (int j = 0; j < ((client *)ue_vector_get_in(clients, i))->topics->length; j++)
+                        if(incomingId){
+                            int delet = 0;
+                            for (int j = 0; j < clients->length; j++)
                             {
-                                if (strcmp(ue_vector_get_in(((client *)ue_vector_get_in(clients, k))->topics, j), topic) == 0)
+                                if (strcmp(((client *)ue_vector_get_in(clients, j))->ID, buffer) == 0)
                                 {
-                                    send(((client *)ue_vector_get_in(clients, k))->sock, buffer + 50, sizeof(1501), 0);
+                                    close(i);
+                                    delet = 1;
                                 }
                             }
+                            if(!delet){
+                                client c;
+                                c.sock = i;
+                                c.topics = ue_vector_start(sizeof(char*), sizeof(char*));
+                                c.messagesToReceive = queue_create();
+                                memcpy(c.ID, buffer, 10);
+                                ue_vector_add_back(clients, &c);
+                                printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
+                            }
+                            incomingId = 0;
                         }
                     }
                 }
@@ -120,6 +178,9 @@ int main(int argc, char *argv[])
                 if(strcmp(command, "exit") == 0){
                     close(sockfd);
                     return 1;
+                }
+                else{
+                    fprintf(stderr, "Invalid command.\n");
                 }
             }
         }
