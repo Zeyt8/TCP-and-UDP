@@ -12,7 +12,6 @@
 #include "ue_vector.h"
 
 #define BUFFER_LEN 1551
-#define MAX_CLIENTS 10000
 #define FD_START 4
 
 typedef struct client{
@@ -69,7 +68,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Cannot bind socket.\n");
     }
 
-    ret = listen(sockfd, MAX_CLIENTS);
+    ret = listen(sockfd, 1000);
     if(ret < 0){
         fprintf(stderr, "Cannot listen to socket.\n");
     }
@@ -98,7 +97,7 @@ int main(int argc, char *argv[])
 
         ret = select(fdmax + 1, &tmp_fds, NULL, NULL, NULL);
         if(ret < 0){
-            fprintf(stderr, "Cannot listen to socket.\n");
+            fprintf(stderr, "Cannot select socket.\n");
         }
 
         for (int i = 0; i <= fdmax; i++){
@@ -162,7 +161,7 @@ int main(int argc, char *argv[])
                         close(sockfd);
                         shutdown(udpfd, SHUT_RDWR);
                         close(udpfd);
-                        return 1;
+                        return 0;
                     }
                     else{
                         fprintf(stderr, "Invalid command.\n");
@@ -180,8 +179,10 @@ int main(int argc, char *argv[])
                         for (int j = 0; j < clients->length; j++)
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
-                                ((client*)ue_vector_get_in(clients, j))->sock = -1;
+                                //shutdown(i, SHUT_RDWR);
                                 close(i);
+                                FD_CLR(i, &read_fds);
+                                ((client*)ue_vector_get_in(clients, j))->sock = -1;
                                 printf("Client %s disconnected.\n", ((client*)ue_vector_get_in(clients, j))->ID);
                             }
                         }
@@ -193,10 +194,11 @@ int main(int argc, char *argv[])
                             {
                                 if (strcmp(((client *)ue_vector_get_in(clients, j))->ID, buffer) == 0)
                                 {
-                                    close(i);
                                     delet = 1;
                                     if(((client *)ue_vector_get_in(clients, j))->sock != -1){
-                                        printf("Client %s already connected.", ((client *)ue_vector_get_in(clients, j))->ID);
+                                        close(i);
+                                        FD_CLR(i, &read_fds);
+                                        printf("Client %s already connected.\n", ((client *)ue_vector_get_in(clients, j))->ID);
                                     }
                                     else{
                                         ((client *)ue_vector_get_in(clients, j))->sock = i;
@@ -223,7 +225,6 @@ int main(int argc, char *argv[])
                         else{
                             char action;
                             memcpy(&action, buffer, 1);
-                            printf("Action: %c\n", action);
                             if(action == 's'){
                                 char *topic = (char *)malloc(51);
                                 memcpy(topic, buffer + 1, 51);

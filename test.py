@@ -447,7 +447,7 @@ def run_test_same_id(server):
   if c1bis.is_alive():
     print("Error: second subscriber C1 is up")
     success = False
-
+    
   if not outs.startswith("Client C1 already connected."):
     print("Error: server did not print that C1 is already connected")
     success = False

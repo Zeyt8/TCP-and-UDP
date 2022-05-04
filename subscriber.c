@@ -162,6 +162,9 @@ int main(int argc, char *argv[])
             }
         }
     }
+    shutdown(sockfd, SHUT_RDWR);
+    close(sockfd);
+    return 0;
 }
 
 void subscribe(char topic[], int sf, int len){
