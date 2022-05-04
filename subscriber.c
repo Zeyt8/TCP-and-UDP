@@ -14,7 +14,7 @@
 void subscribe(char topic[], int sf, int len);
 void unsubscribe(char topic[], int len);
 
-char idClient[50];
+char idClient[ID_LEN];
 int sockfd;
 struct sockaddr_in serv_addr;
 char buffer[BUFFER_LEN];
@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
                 memcpy(&sign, buffer + 1, 1);
                 uint32_t number;
                 memcpy(&number, buffer + 2, sizeof(uint32_t));
-                int p = number;
+                int p = ntohl(number);
                 if(sign == 1){
                     p *= -1;
                 }
@@ -135,9 +135,10 @@ int main(int argc, char *argv[])
             }
             else if (type == 3)
             {
-                char string[1500];
-                memcpy(string, buffer + 1, sizeof(string));
-                puts(string);
+                char string[1501];
+                memcpy(string, buffer + 1, sizeof(string) - 1);
+                string[1500] = '\0';
+                printf("%s\n", string);
             }
             else
             {
@@ -149,9 +150,10 @@ int main(int argc, char *argv[])
 
 void subscribe(char topic[], int sf, int len){
     memset(buffer, 0, BUFFER_LEN);
-    memcpy(buffer, topic, len);
-    memcpy(buffer + 50, &sf, sizeof(sf));
-    memcpy(buffer + 50 + sizeof(sf), "\0", 1);
+    memcpy(buffer, "s", 1);
+    memcpy(buffer + 1, topic, len);
+    memcpy(buffer + 52, &sf, sizeof(sf));
+    memcpy(buffer + 52 + sizeof(sf), "\0", 1);
     ret = send(sockfd, buffer, 55, 0);
     if(ret < 0){
         fprintf(stderr, "Cannot send message to server.\n");
@@ -163,8 +165,9 @@ void subscribe(char topic[], int sf, int len){
 
 void unsubscribe(char topic[], int len){
     memset(buffer, 0, BUFFER_LEN);
-    memcpy(buffer, topic, len);
-    memcpy(buffer + 50, "\0", 1);
+    memcpy(buffer, "u", 1);
+    memcpy(buffer + 1, topic, len);
+    memcpy(buffer + 52, "\0", 1);
     ret = send(sockfd, buffer, 51, 0);
     if(ret < 0){
         fprintf(stderr, "Cannot send message to server.\n");

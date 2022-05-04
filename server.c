@@ -18,6 +18,7 @@ typedef struct client{
     int sock;
     char ID[10];
     ue_vector *topics;
+    ue_vector *sfs;
     queue messagesToReceive;
 } client;
 
@@ -121,11 +122,13 @@ int main(int argc, char *argv[])
                     topic[50] = '\0';
                     for (int k = 0; k < clients->length; k++)
                     {
-                        for (int j = 0; j < ((client *)ue_vector_get_in(clients, k))->topics->length; j++)
+                        client *c = ((client *)ue_vector_get_in(clients, k));
+                        for (int j = 0; j < c->topics->length; j++)
                         {
-                            if (strcmp(ue_vector_get_in(((client *)ue_vector_get_in(clients, k))->topics, j), topic) == 0)
+                            printf("Server: %s %s\n", *(char **)ue_vector_get_in(c->topics, j), topic);
+                            if (strcmp(*(char **)ue_vector_get_in(c->topics, j), topic) == 0)
                             {
-                                send(((client *)ue_vector_get_in(clients, k))->sock, buffer + 50, sizeof(1501), 0);
+                                send(c->sock, buffer + 50, sizeof(1501), 0);
                             }
                         }
                     }
@@ -161,12 +164,50 @@ int main(int argc, char *argv[])
                                 client c;
                                 c.sock = i;
                                 c.topics = ue_vector_start(sizeof(char*), sizeof(char*));
+                                c.sfs = ue_vector_start(sizeof(int), sizeof(int));
                                 c.messagesToReceive = queue_create();
                                 memcpy(c.ID, buffer, 10);
                                 ue_vector_add_back(clients, &c);
                                 printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
                             }
                             incomingId = 0;
+                        }
+                        else{
+                            char action;
+                            memcpy(&action, buffer, 1);
+                            if(action == 's'){
+                                char *topic = (char *)malloc(51);
+                                memcpy(topic, buffer + 1, 51);
+                                int sf;
+                                memcpy(&sf, buffer + 52, sizeof(sf));
+                                for (int j = 0; j < clients->length; j++){
+                                    if(((client*)ue_vector_get_in(clients, j))->sock == i){
+                                        ue_vector_add_front(((client *)ue_vector_get_in(clients, j))->topics, &topic);
+                                        ue_vector_add_front(((client *)ue_vector_get_in(clients, j))->sfs, &sf);
+                                    }
+                                }
+                            }
+                            else if(action == 'u'){
+                                char topic[51];
+                                memcpy(topic, buffer + 1, 51);
+                                for (int j = 0; j < clients->length; j++)
+                                {
+                                    client *c = ((client *)ue_vector_get_in(clients, j));
+                                    if (c->sock == i)
+                                    {
+                                        for (int k = 0; k < c->topics->length; k++)
+                                        {
+                                            if (strcmp(*(char**)ue_vector_get_in(c->topics, k), topic) == 0){
+                                                ue_vector_delete_in(c->topics, k);
+                                                ue_vector_delete_in(c->sfs, k);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            else{
+                                fprintf(stderr, "Invalid message.");
+                            }
                         }
                     }
                 }
