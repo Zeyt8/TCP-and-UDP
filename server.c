@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 #include "queue.h"
 #include "ue_vector.h"
 
@@ -50,6 +51,12 @@ int main(int argc, char *argv[])
         fprintf(stderr, "No socket available.\n");
     }
 
+    int flag = 1;
+    ret = setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
+    if(ret < 0){
+        fprintf(stderr, "Error disabling Nagle.");
+    }
+
     portno = atoi(argv[1]);
 
     memset((char *)&serv_addr, 0, sizeof(serv_addr));
@@ -71,7 +78,7 @@ int main(int argc, char *argv[])
     if(udpfd < 0){
         fprintf(stderr, "No scoket available.\n");
     }
-    ret = bind(udpfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+    ret = bind(udpfd, (struct sockaddr*)&serv_addr, sizeof(struct sockaddr));
     if(ret < 0){
         fprintf(stderr, "Cannot bind socket.\n");
     }
@@ -102,6 +109,10 @@ int main(int argc, char *argv[])
                     if(newsockfd < 0){
                         fprintf(stderr, "Cannot accept connection.\n");
                     }
+                    ret = setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
+                    if(ret < 0){
+                        fprintf(stderr, "Error disabling Nagle.");
+                    }
                     FD_SET(newsockfd, &read_fds);
                     if (newsockfd > fdmax)
                     {
@@ -112,10 +123,10 @@ int main(int argc, char *argv[])
                 else if(i == udpfd){
                     memset(buffer, 0, BUFFER_LEN);
                     struct sockaddr addr;
-                    socklen_t addrLen;
+                    socklen_t addrLen = sizeof(struct sockaddr);
                     n = recvfrom(i, buffer, BUFFER_LEN, 0, &addr, &addrLen);
                     if(n < 0){
-                        fprintf(stderr, "Cannot receive from socket.\n");
+                        fprintf(stderr, "Cannot receive from socket. UDP\n");
                     }
                     char topic[51];
                     memcpy(topic, buffer, 50);
@@ -125,10 +136,16 @@ int main(int argc, char *argv[])
                         client *c = ((client *)ue_vector_get_in(clients, k));
                         for (int j = 0; j < c->topics->length; j++)
                         {
-                            printf("Server: %s %s\n", *(char **)ue_vector_get_in(c->topics, j), topic);
                             if (strcmp(*(char **)ue_vector_get_in(c->topics, j), topic) == 0)
                             {
-                                send(c->sock, buffer + 50, sizeof(1501), 0);
+                                if(c->sock != -1){
+                                    send(c->sock, buffer, BUFFER_LEN, 0);
+                                }
+                                else if(*(int*)ue_vector_get_in(c->sfs, j) == 1){
+                                    char *temp = (char*)malloc(BUFFER_LEN);
+                                    memcpy(temp, buffer, BUFFER_LEN);
+                                    queue_enq(c->messagesToReceive, &temp);
+                                }
                             }
                         }
                     }
@@ -136,7 +153,7 @@ int main(int argc, char *argv[])
                 else{
                     memset(buffer, 0, BUFFER_LEN);
                     struct sockaddr addr;
-                    socklen_t addrLen;
+                    socklen_t addrLen = sizeof(struct sockaddr);;
                     n = recvfrom(i, buffer, BUFFER_LEN, 0, &addr, &addrLen);
                     if(n < 0){
                         fprintf(stderr, "Cannot receive from socket.\n");
@@ -145,7 +162,8 @@ int main(int argc, char *argv[])
                         for (int j = 0; j < clients->length; j++)
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
-                                ue_vector_delete_in(clients, j);
+                                ((client*)ue_vector_get_in(clients, j))->sock = -1;
+                                printf("Client disconnected.\n");
                             }
                         }
                     }
@@ -158,6 +176,16 @@ int main(int argc, char *argv[])
                                 {
                                     close(i);
                                     delet = 1;
+                                    if(((client *)ue_vector_get_in(clients, j))->sock != -1){
+                                        printf("Client %s already connected.", ((client *)ue_vector_get_in(clients, j))->ID);
+                                    }
+                                    else{
+                                        ((client *)ue_vector_get_in(clients, j))->sock = i;
+                                        while(!queue_empty(((client *)ue_vector_get_in(clients, j))->messagesToReceive)){
+                                            char **mess = queue_deq(((client *)ue_vector_get_in(clients, j))->messagesToReceive);
+                                            send(i, *mess, BUFFER_LEN, 0);
+                                        }
+                                    }
                                 }
                             }
                             if(!delet){
@@ -175,6 +203,7 @@ int main(int argc, char *argv[])
                         else{
                             char action;
                             memcpy(&action, buffer, 1);
+                            printf("Action: %c\n", action);
                             if(action == 's'){
                                 char *topic = (char *)malloc(51);
                                 memcpy(topic, buffer + 1, 51);
@@ -206,7 +235,7 @@ int main(int argc, char *argv[])
                                 }
                             }
                             else{
-                                fprintf(stderr, "Invalid message.");
+                                fprintf(stderr, "Invalid message.\n");
                             }
                         }
                     }

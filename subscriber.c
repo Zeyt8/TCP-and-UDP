@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 
 #define BUFFER_LEN 1551
 #define ID_LEN 10
@@ -35,6 +36,11 @@ int main(int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0){
         fprintf(stderr, "No socket available.\n");
+    }
+    int flag = 1;
+    ret = setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
+    if(ret < 0){
+        fprintf(stderr, "Error disabling Nagle.");
     }
 
     serv_addr.sin_family = AF_INET;
@@ -69,7 +75,7 @@ int main(int argc, char *argv[])
 
         if(FD_ISSET(STDIN_FILENO, &tmp_fds)){
             fgets(command, 100, stdin);
-            tok = strtok(command, " ");
+            tok = strtok(command, " \n");
             if(strcmp(tok, "subscribe") == 0){
                 char* topic = strtok(NULL, " ");
                 tok = strtok(NULL, " ");
@@ -94,20 +100,28 @@ int main(int argc, char *argv[])
             {
                 fprintf(stderr, "Cannot receive message.\n");
             }
+            else if(n == 0){
+                close(sockfd);
+                return 1;
+            }
 
-            unsigned int type;
-            memcpy(&type, buffer, 1);
+            char topic[51];
+            memcpy(topic, buffer, 50);
+            topic[50] = '\0';
+
+            unsigned int type = 0;
+            memcpy(&type, buffer + 50, 1);
             if (type == 0)
             {
-                uint8_t sign;
-                memcpy(&sign, buffer + 1, 1);
-                uint32_t number;
-                memcpy(&number, buffer + 2, sizeof(uint32_t));
-                int p = ntohl(number);
+                uint8_t sign = 0;
+                memcpy(&sign, buffer + 51, 1);
+                uint32_t number = 0;
+                memcpy(&number, buffer + 52, sizeof(uint32_t));
+                uint32_t p = ntohl(number);
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%d\n", p);
+                printf("%s - %s - %u\n", topic, "INT", p);
             }
             else if (type == 1)
             {
