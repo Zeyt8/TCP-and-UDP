@@ -86,8 +86,9 @@ int main(int argc, char *argv[])
                 unsubscribe(tok, strlen(tok));
             }
             else if(strcmp(tok, "exit") == 0){
+                shutdown(sockfd, SHUT_RDWR);
                 close(sockfd);
-                return 0;
+                exit(0);
             }
             else{
                 fprintf(stderr, "Invalid command.\n");
@@ -117,42 +118,43 @@ int main(int argc, char *argv[])
                 memcpy(&sign, buffer + 51, 1);
                 uint32_t number = 0;
                 memcpy(&number, buffer + 52, sizeof(uint32_t));
-                uint32_t p = ntohl(number);
+                int p = ntohl(number);
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%s - %s - %u\n", topic, "INT", p);
+                printf("%s - %s - %d\n", topic, "INT", p);
             }
             else if (type == 1)
             {
-                uint16_t number;
-                memcpy(&number, buffer + 1, sizeof(uint16_t));
-                float p = number / 100;
-                printf("%f\n", p);
+                uint16_t number = 0;
+                memcpy(&number, buffer + 51, sizeof(uint16_t));
+                unsigned short p = ntohs(number);
+                float res = (float)p / 100;
+                printf("%s - %s - %.2f\n", topic, "SHORT_REAL", res);
             }
             else if (type == 2)
             {
-                uint8_t sign;
-                memcpy(&sign, buffer + 1, 1);
-                uint32_t number;
-                memcpy(&number, buffer + 2, sizeof(uint32_t));
-                uint8_t point;
-                memcpy(&point, buffer + 2 + sizeof(uint32_t), sizeof(uint8_t));
-                float p = number;
+                uint8_t sign = 0;
+                memcpy(&sign, buffer + 51, 1);
+                uint32_t number = 0;
+                memcpy(&number, buffer + 52, sizeof(uint32_t));
+                uint8_t point = 0;
+                memcpy(&point, buffer + 52 + sizeof(uint32_t), sizeof(uint8_t));
+                float p = ntohl(number);
                 for (int k = 0; k < point; k++){
                     p /= 10;
                 }
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%f\n", p);
+                printf("%s - %s - %f\n", topic, "FLOAT", p);
             }
             else if (type == 3)
             {
                 char string[1501];
-                memcpy(string, buffer + 1, sizeof(string) - 1);
+                memcpy(string, buffer + 51, sizeof(string) - 1);
                 string[1500] = '\0';
-                printf("%s\n", string);
+                printf("%s - %s - %s\n", topic, "STRING", string);
             }
             else
             {

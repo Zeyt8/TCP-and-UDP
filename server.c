@@ -150,6 +150,24 @@ int main(int argc, char *argv[])
                         }
                     }
                 }
+                else if(i == STDIN_FILENO){
+                    char command[5];
+                    fgets(command, 5, stdin);
+                    if(strcmp(command, "exit") == 0){
+                        for(int j=0;j<=fdmax;j++){
+                            close(i);
+                            FD_CLR(i, &read_fds);
+                        }
+                        shutdown(sockfd, SHUT_RDWR);
+                        close(sockfd);
+                        shutdown(udpfd, SHUT_RDWR);
+                        close(udpfd);
+                        return 1;
+                    }
+                    else{
+                        fprintf(stderr, "Invalid command.\n");
+                    }
+                }
                 else{
                     memset(buffer, 0, BUFFER_LEN);
                     struct sockaddr addr;
@@ -163,7 +181,8 @@ int main(int argc, char *argv[])
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
                                 ((client*)ue_vector_get_in(clients, j))->sock = -1;
-                                printf("Client disconnected.\n");
+                                close(i);
+                                printf("Client %s disconnected.\n", ((client*)ue_vector_get_in(clients, j))->ID);
                             }
                         }
                     }
@@ -181,6 +200,7 @@ int main(int argc, char *argv[])
                                     }
                                     else{
                                         ((client *)ue_vector_get_in(clients, j))->sock = i;
+                                        printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
                                         while(!queue_empty(((client *)ue_vector_get_in(clients, j))->messagesToReceive)){
                                             char **mess = queue_deq(((client *)ue_vector_get_in(clients, j))->messagesToReceive);
                                             send(i, *mess, BUFFER_LEN, 0);
@@ -239,18 +259,6 @@ int main(int argc, char *argv[])
                             }
                         }
                     }
-                }
-            }
-            else if (FD_ISSET(STDIN_FILENO, &tmp_fds))
-            {
-                char command[5];
-                fgets(command, 5, stdin);
-                if(strcmp(command, "exit") == 0){
-                    close(sockfd);
-                    return 1;
-                }
-                else{
-                    fprintf(stderr, "Invalid command.\n");
                 }
             }
         }
