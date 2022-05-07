@@ -121,9 +121,9 @@ int main(int argc, char *argv[])
                 }
                 else if(i == udpfd){
                     memset(buffer, 0, BUFFER_LEN);
-                    struct sockaddr addr;
+                    struct sockaddr* addr = malloc(sizeof(struct sockaddr));
                     socklen_t addrLen = sizeof(struct sockaddr);
-                    n = recvfrom(i, buffer, BUFFER_LEN, 0, &addr, &addrLen);
+                    n = recvfrom(i, buffer, BUFFER_LEN, 0, addr, &addrLen);
                     if(n < 0){
                         fprintf(stderr, "Cannot receive from socket. UDP\n");
                     }
@@ -138,16 +138,36 @@ int main(int argc, char *argv[])
                             if (strcmp(*(char **)ue_vector_get_in(c->topics, j), topic) == 0)
                             {
                                 if(c->sock != -1){
-                                    send(c->sock, buffer, BUFFER_LEN, 0);
+                                    char buffer2[BUFFER_LEN + 19];
+                                    char ipaddr[16];
+                                    strcpy(ipaddr, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
+                                    ipaddr[15] = '\0';
+                                    memset(buffer2, 0, BUFFER_LEN + 18);
+                                    memcpy(buffer2, buffer, BUFFER_LEN);
+                                    memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
+                                    memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
+                                    memcpy(buffer2 + 18, "\r", 1);
+                                    send(c->sock, buffer2, BUFFER_LEN + 19, 0);
                                 }
                                 else if(*(int*)ue_vector_get_in(c->sfs, j) == 1){
-                                    char *temp = (char*)malloc(BUFFER_LEN);
-                                    memcpy(temp, buffer, BUFFER_LEN);
+                                    char *temp = (char*)malloc(BUFFER_LEN + 19);
+                                    char buffer2[BUFFER_LEN + 19];
+                                    char ipaddr[16];
+                                    strcpy(ipaddr, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
+                                    ipaddr[15] = '\0';
+                                    memset(buffer2, 0, BUFFER_LEN + 18);
+                                    memcpy(buffer2, buffer, BUFFER_LEN);
+                                    memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
+                                    memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
+                                    memcpy(buffer2 + 18, "\r", 1);
+
+                                    memcpy(temp, buffer2, BUFFER_LEN + 19);
                                     queue_enq(c->messagesToReceive, &temp);
                                 }
                             }
                         }
                     }
+                    free(addr);
                 }
                 else if(i == STDIN_FILENO){
                     char command[5];
@@ -179,7 +199,6 @@ int main(int argc, char *argv[])
                         for (int j = 0; j < clients->length; j++)
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
-                                //shutdown(i, SHUT_RDWR);
                                 close(i);
                                 FD_CLR(i, &read_fds);
                                 ((client*)ue_vector_get_in(clients, j))->sock = -1;
@@ -205,7 +224,7 @@ int main(int argc, char *argv[])
                                         printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
                                         while(!queue_empty(((client *)ue_vector_get_in(clients, j))->messagesToReceive)){
                                             char **mess = queue_deq(((client *)ue_vector_get_in(clients, j))->messagesToReceive);
-                                            send(i, *mess, BUFFER_LEN, 0);
+                                            send(i, *mess, BUFFER_LEN + 19, 0);
                                         }
                                     }
                                 }

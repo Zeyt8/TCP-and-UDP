@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <netinet/tcp.h>
 
-#define BUFFER_LEN 1551
+#define BUFFER_LEN 1570
 #define ID_LEN 10
 
 void subscribe(char topic[], int sf, int len);
@@ -112,6 +112,11 @@ int main(int argc, char *argv[])
 
             unsigned int type = 0;
             memcpy(&type, buffer + 50, 1);
+
+            char ip[16] = "127.0.0.1\0";
+            memcpy(ip, buffer + 1551, 16);
+            uint16_t port = 0;
+            memcpy(&port, buffer + 1567, 2);
             if (type == 0)
             {
                 uint8_t sign = 0;
@@ -122,7 +127,7 @@ int main(int argc, char *argv[])
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%s - %s - %d\n", topic, "INT", p);
+                printf("%s:%u - %s - %s - %d\n", ip, port, topic, "INT", p);
             }
             else if (type == 1)
             {
@@ -130,7 +135,7 @@ int main(int argc, char *argv[])
                 memcpy(&number, buffer + 51, sizeof(uint16_t));
                 unsigned short p = ntohs(number);
                 float res = (float)p / 100;
-                printf("%s - %s - %.2f\n", topic, "SHORT_REAL", res);
+                printf("%s:%u - %s - %s - %.2f\n", ip, port, topic, "SHORT_REAL", res);
             }
             else if (type == 2)
             {
@@ -147,14 +152,14 @@ int main(int argc, char *argv[])
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%s - %s - %f\n", topic, "FLOAT", p);
+                printf("%s:%u - %s - %s - %f\n", ip, port, topic, "FLOAT", p);
             }
             else if (type == 3)
             {
                 char string[1501];
                 memcpy(string, buffer + 51, sizeof(string) - 1);
                 string[1500] = '\0';
-                printf("%s - %s - %s\n", topic, "STRING", string);
+                printf("%s:%u - %s - %s - %s\n", ip, port, topic, "STRING", string);
             }
             else
             {
