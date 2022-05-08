@@ -19,8 +19,10 @@ char idClient[ID_LEN];
 int sockfd;
 struct sockaddr_in serv_addr;
 char buffer[BUFFER_LEN];
+char recvBuffer[BUFFER_LEN * 2];
 fd_set read_fds, tmp_fds;
 int ret;
+char* pointer;
 
 int main(int argc, char *argv[])
 {
@@ -64,6 +66,9 @@ int main(int argc, char *argv[])
 
     char command[100];
     char *tok;
+
+    pointer = recvBuffer;
+
     while (1)
     {
         tmp_fds = read_fds;
@@ -96,17 +101,29 @@ int main(int argc, char *argv[])
         }
         if(FD_ISSET(sockfd, &tmp_fds)){
             memset(buffer, 0, BUFFER_LEN);
-            n = recv(sockfd, buffer, BUFFER_LEN, 0);
-            if(n < 0)
-            {
-                fprintf(stderr, "Cannot receive message.\n");
-            }
-            else if(n == 0){
-                close(sockfd);
-                return 1;
-            }
-
+            n = 0;
             char topic[51];
+            while(1){
+                n = recv(sockfd, pointer, BUFFER_LEN, 0);
+                if(n < 0)
+                {
+                    fprintf(stderr, "Cannot receive message.\n");
+                }
+                else if(n == 0){
+                    close(sockfd);
+                    return 1;
+                }
+                pointer = recvBuffer + n;
+                for(int i=0;i<n;i++){
+                    if(recvBuffer[i] == '\r'){
+                        memcpy(buffer, recvBuffer, BUFFER_LEN);
+                        memcpy(recvBuffer, recvBuffer + BUFFER_LEN, BUFFER_LEN);
+                        pointer -= BUFFER_LEN;
+                        goto processMessage;
+                    }
+                }
+            }
+processMessage:
             memcpy(topic, buffer, 50);
             topic[50] = '\0';
 
@@ -127,7 +144,7 @@ int main(int argc, char *argv[])
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%s:%u - %s - %s - %d\n", ip, port, topic, "INT", p);
+                printf("%s:%u - %s - INT - %d\n", ip, port, topic, p);
             }
             else if (type == 1)
             {
@@ -135,7 +152,7 @@ int main(int argc, char *argv[])
                 memcpy(&number, buffer + 51, sizeof(uint16_t));
                 unsigned short p = ntohs(number);
                 float res = (float)p / 100;
-                printf("%s:%u - %s - %s - %.2f\n", ip, port, topic, "SHORT_REAL", res);
+                printf("%s:%u - %s - SHORT_REAL - %.2f\n", ip, port, topic, res);
             }
             else if (type == 2)
             {
@@ -152,14 +169,14 @@ int main(int argc, char *argv[])
                 if(sign == 1){
                     p *= -1;
                 }
-                printf("%s:%u - %s - %s - %f\n", ip, port, topic, "FLOAT", p);
+                printf("%s:%u - %s - FLOAT - %f\n", ip, port, topic, p);
             }
             else if (type == 3)
             {
                 char string[1501];
                 memcpy(string, buffer + 51, sizeof(string) - 1);
                 string[1500] = '\0';
-                printf("%s:%u - %s - %s - %s\n", ip, port, topic, "STRING", string);
+                printf("%s:%u - %s - STRING - %s\n", ip, port, topic, string);
             }
             else
             {

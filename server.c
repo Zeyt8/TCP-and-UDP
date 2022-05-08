@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
                                     memcpy(buffer2, buffer, BUFFER_LEN);
                                     memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
                                     memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
-                                    memcpy(buffer2 + 18, "\r", 1);
+                                    memcpy(buffer2 + BUFFER_LEN + 18, "\r", 1);
                                     send(c->sock, buffer2, BUFFER_LEN + 19, 0);
                                 }
                                 else if(*(int*)ue_vector_get_in(c->sfs, j) == 1){
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
                                     memcpy(buffer2, buffer, BUFFER_LEN);
                                     memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
                                     memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
-                                    memcpy(buffer2 + 18, "\r", 1);
+                                    memcpy(buffer2 + BUFFER_LEN + 18, "\r", 1);
 
                                     memcpy(temp, buffer2, BUFFER_LEN + 19);
                                     queue_enq(c->messagesToReceive, &temp);
