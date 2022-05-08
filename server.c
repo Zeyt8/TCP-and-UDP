@@ -45,6 +45,7 @@ int main(int argc, char *argv[])
     FD_ZERO(&read_fds);
     FD_ZERO(&tmp_fds);
 
+    //Socket for TCP
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if(sockfd < 0){
         fprintf(stderr, "No socket available.\n");
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Cannot listen to socket.\n");
     }
 
+    //Socket for UDP
     udpfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(udpfd < 0){
         fprintf(stderr, "No scoket available.\n");
@@ -101,13 +103,16 @@ int main(int argc, char *argv[])
         }
 
         for (int i = 0; i <= fdmax; i++){
+            //If input is available
             if(FD_ISSET(i, &tmp_fds)){
-                if(i==sockfd){
+                if(i==sockfd){  //For TCP
                     clilen = sizeof(cli_addr);
+                    //Accept connection
                     newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
                     if(newsockfd < 0){
                         fprintf(stderr, "Cannot accept connection.\n");
                     }
+                    //Get new socket
                     ret = setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (char*)&flag, sizeof(int));
                     if(ret < 0){
                         fprintf(stderr, "Error disabling Nagle.");
@@ -117,6 +122,7 @@ int main(int argc, char *argv[])
                     {
                         fdmax = newsockfd;
                     }
+                    //Be ready to receive ID
                     incomingId = 1;
                 }
                 else if(i == udpfd){
@@ -128,6 +134,7 @@ int main(int argc, char *argv[])
                         fprintf(stderr, "Cannot receive from socket. UDP\n");
                     }
                     char topic[51];
+                    //Get topic
                     memcpy(topic, buffer, 50);
                     topic[50] = '\0';
                     for (int k = 0; k < clients->length; k++)
@@ -135,8 +142,10 @@ int main(int argc, char *argv[])
                         client *c = ((client *)ue_vector_get_in(clients, k));
                         for (int j = 0; j < c->topics->length; j++)
                         {
+                            //If client is subscribed to topic
                             if (strcmp(*(char **)ue_vector_get_in(c->topics, j), topic) == 0)
                             {
+                                //If is connected
                                 if(c->sock != -1){
                                     char buffer2[BUFFER_LEN + 19];
                                     char ipaddr[16];
@@ -144,12 +153,15 @@ int main(int argc, char *argv[])
                                     ipaddr[15] = '\0';
                                     memset(buffer2, 0, BUFFER_LEN + 18);
                                     memcpy(buffer2, buffer, BUFFER_LEN);
+                                    //Add source IP
                                     memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
+                                    //Add source port
                                     memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
+                                    //Add message end
                                     memcpy(buffer2 + BUFFER_LEN + 18, "\r", 1);
                                     send(c->sock, buffer2, BUFFER_LEN + 19, 0);
                                 }
-                                else if(*(int*)ue_vector_get_in(c->sfs, j) == 1){
+                                else if(*(int*)ue_vector_get_in(c->sfs, j) == 1){   //If not connected and sf = 1
                                     char *temp = (char*)malloc(BUFFER_LEN + 19);
                                     char buffer2[BUFFER_LEN + 19];
                                     char ipaddr[16];
@@ -157,11 +169,15 @@ int main(int argc, char *argv[])
                                     ipaddr[15] = '\0';
                                     memset(buffer2, 0, BUFFER_LEN + 18);
                                     memcpy(buffer2, buffer, BUFFER_LEN);
+                                    //Add source IP
                                     memcpy(buffer2 + BUFFER_LEN, ipaddr, strlen(ipaddr));
+                                    //Add source port
                                     memcpy(buffer2 + BUFFER_LEN + 16, &((struct sockaddr_in*)addr)->sin_port, sizeof(uint16_t));
+                                    //Add message end
                                     memcpy(buffer2 + BUFFER_LEN + 18, "\r", 1);
 
                                     memcpy(temp, buffer2, BUFFER_LEN + 19);
+                                    //Add to messages to be send when connecting
                                     queue_enq(c->messagesToReceive, &temp);
                                 }
                             }
@@ -169,9 +185,10 @@ int main(int argc, char *argv[])
                     }
                     free(addr);
                 }
-                else if(i == STDIN_FILENO){
+                else if(i == STDIN_FILENO){ //Console input
                     char command[5];
                     fgets(command, 5, stdin);
+                    //Exit
                     if(strcmp(command, "exit") == 0){
                         for(int j=0;j<=fdmax;j++){
                             close(i);
@@ -196,6 +213,7 @@ int main(int argc, char *argv[])
                         fprintf(stderr, "Cannot receive from socket.\n");
                     }
                     else if(n==0){
+                        //Find client with specified ID and disconnect
                         for (int j = 0; j < clients->length; j++)
                         {
                             if(((client*)ue_vector_get_in(clients, j))->sock == i){
@@ -214,7 +232,9 @@ int main(int argc, char *argv[])
                                 if (strcmp(((client *)ue_vector_get_in(clients, j))->ID, buffer) == 0)
                                 {
                                     delet = 1;
+                                    //If another client with the same ID is connected
                                     if(((client *)ue_vector_get_in(clients, j))->sock != -1){
+                                        //Close socket
                                         close(i);
                                         FD_CLR(i, &read_fds);
                                         printf("Client %s already connected.\n", ((client *)ue_vector_get_in(clients, j))->ID);
@@ -222,6 +242,7 @@ int main(int argc, char *argv[])
                                     else{
                                         ((client *)ue_vector_get_in(clients, j))->sock = i;
                                         printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
+                                        //Find client with ID and mark as connected
                                         while(!queue_empty(((client *)ue_vector_get_in(clients, j))->messagesToReceive)){
                                             char **mess = queue_deq(((client *)ue_vector_get_in(clients, j))->messagesToReceive);
                                             send(i, *mess, BUFFER_LEN + 19, 0);
@@ -229,6 +250,7 @@ int main(int argc, char *argv[])
                                     }
                                 }
                             }
+                            //If new client
                             if(!delet){
                                 client c;
                                 c.sock = i;
@@ -236,6 +258,7 @@ int main(int argc, char *argv[])
                                 c.sfs = ue_vector_start(sizeof(int), sizeof(int));
                                 c.messagesToReceive = queue_create();
                                 memcpy(c.ID, buffer, 10);
+                                //Add to clients list
                                 ue_vector_add_back(clients, &c);
                                 printf("New client %s connected from %s:%d\n", buffer, inet_ntoa(cli_addr.sin_addr), cli_addr.sin_port);
                             }
@@ -244,6 +267,7 @@ int main(int argc, char *argv[])
                         else{
                             char action;
                             memcpy(&action, buffer, 1);
+                            //If subscribe action
                             if(action == 's'){
                                 char *topic = (char *)malloc(51);
                                 memcpy(topic, buffer + 1, 51);
@@ -251,12 +275,14 @@ int main(int argc, char *argv[])
                                 memcpy(&sf, buffer + 52, sizeof(sf));
                                 for (int j = 0; j < clients->length; j++){
                                     if(((client*)ue_vector_get_in(clients, j))->sock == i){
+                                        //Add subscribtion topic
                                         ue_vector_add_front(((client *)ue_vector_get_in(clients, j))->topics, &topic);
+                                        //Add sf
                                         ue_vector_add_front(((client *)ue_vector_get_in(clients, j))->sfs, &sf);
                                     }
                                 }
                             }
-                            else if(action == 'u'){
+                            else if(action == 'u'){ //If unsubscribe action
                                 char topic[51];
                                 memcpy(topic, buffer + 1, 51);
                                 for (int j = 0; j < clients->length; j++)
@@ -267,7 +293,9 @@ int main(int argc, char *argv[])
                                         for (int k = 0; k < c->topics->length; k++)
                                         {
                                             if (strcmp(*(char**)ue_vector_get_in(c->topics, k), topic) == 0){
+                                                //Remove topic
                                                 ue_vector_delete_in(c->topics, k);
+                                                //Remove sf
                                                 ue_vector_delete_in(c->sfs, k);
                                             }
                                         }
