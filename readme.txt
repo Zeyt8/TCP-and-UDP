@@ -18,3 +18,6 @@ Subscriber
 	2. Mesaje de la server
 		Daca socketul de primire este activ, subscriberul primeste date intr-un while pana cand un mesaj intreg a fost primit. Acest lucru se verifica prin prezenta caracterului '\r' ce marcheaza finalul unui mesaj. La primire de date, pointer se incrementeaza cu numarul de bytes primit, adica la pozitia unde sa se adauge in bufferul de citire. Cand un mesaj intreg este depistat, acesta este copiat in alt buffer, inceputul urmatorului mesaj este mutat la inceputul bufferului de citire, iar pointerul este decrementat cu lungimea unui mesaj.
 		Se trece la prelucrarea mesajului. Se verifica tipul de mesaj. In cazul numeric se citeste numarul din buffer si se modifica in asa fel incat sa aiba ordinea corecta a bytilor. Se fac alte calcule in functie de caz si se afiseaza. IPul si portul sursei se iau de la finalul mesajului, pozitia lor in mesaj este explicata in Server(2.).
+		
+Implementarea pentru ue_vector este preluata de aici: https://codereview.stackexchange.com/questions/253173/generic-vector-implemented-in-c-language
+List si queue sunt luate din scheletul temei 1.
