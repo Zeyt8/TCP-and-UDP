@@ -1,3 +1,7 @@
+# TCP and UDP - Communication Protocols - Project 2
+
+A pdf with the detailed description can be found in the repo.
+
 ## Server
 
 The server handles messages in 4 ways:
